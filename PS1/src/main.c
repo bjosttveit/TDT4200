@@ -195,7 +195,7 @@ static void master_crack(ExtendedCrackResult *result, Options *options, Dictiona
 
     // Start time measurement
     // TODO
-    double start_time = 0;
+    double start_time = MPI_Wtime();
 
     // Try probes until the status changes (when a match is found or the search space is exhausted)
     while (result->status == STATUS_PENDING)
@@ -236,7 +236,7 @@ static void master_crack(ExtendedCrackResult *result, Options *options, Dictiona
 
     // End time measurement
     // TODO
-    double end_time = 0;
+    double end_time = MPI_Wtime();
     result->duration = end_time - start_time;
 
     free(config.dict_positions);
