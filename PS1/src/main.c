@@ -8,22 +8,23 @@
 
 #include "util.h"
 
-static bool run_master(int argc, char **argv);
-static bool init_master(Options *options, Dictionary *dict, FILE **shadow_file, FILE **result_file, int argc, char **argv);
+static bool run_master(int argc, char **argv, int mpi_size);
+static bool init_master(Options *options, Dictionary *dict, FILE **shadow_file, FILE **result_file, int argc, char **argv, int mpi_size);
 static void master_cleanup(FILE *shadow_file, FILE *result_file, Dictionary *dict);
-static void master_crack(ExtendedCrackResult *result, Options *options, Dictionary *dict, ShadowEntry *entry);
+static void master_crack(ExtendedCrackResult *result, Options *options, Dictionary *dict, ShadowEntry *entry, int mpi_size);
 static bool get_next_probe(ProbeConfig *config, Options *options, Dictionary *dict);
 static void replica_crack(Options *options);
 static void crack_job(CrackResult *result, CrackJob *job);
 static void handle_result(Options *options, ExtendedCrackResult *result, OverviewCrackResult *overview_result, FILE *result_file);
 static void handle_overview_result(Options *options, OverviewCrackResult *overview_result);
+static bool run_replica(int mpi_size);
 
 /*
  * Main entrypoint.
  */
 int main(int argc, char **argv)
 {
-    char message[100];
+
     int comm_sz;
     int my_rank;
 
@@ -34,18 +35,11 @@ int main(int argc, char **argv)
     bool success;
     if (my_rank == 0)
     {
-        for (int i = 1; i < comm_sz; i++)
-        {
-            MPI_Recv(message, 100, MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            printf("%s\n", message);
-        }
-        success = run_master(argc, argv);
+        success = run_master(argc, argv, comm_sz);
     }
     else
     {
-        sprintf(message, "My rank is %d of %d\n", my_rank, comm_sz);
-        MPI_Send(message, strlen(message) + 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-        success = true;
+        success = run_replica(comm_sz);
     }
 
     MPI_Finalize();
@@ -53,17 +47,43 @@ int main(int argc, char **argv)
     return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+static bool run_replica(int mpi_size)
+{
+    while (true)
+    {
+        CrackJob job;
+        CrackResult result;
+
+        MPI_Scatter(0, 0, MPI_BYTE, &job, sizeof(CrackJob), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+        if (job.action == ACTION_STOP)
+        {
+            return true;
+        }
+
+        if (job.action == ACTION_WAIT)
+        {
+            result.status = STATUS_SKIP;
+        }
+        else if (job.action == ACTION_WORK)
+        {
+            crack_job(&result, &job);
+        }
+        MPI_Gather(&result, sizeof(CrackResult), MPI_BYTE, 0, 0, MPI_BYTE, 0, MPI_COMM_WORLD);
+    }
+}
+
 /*
  * Entrypoint for master.
  */
-static bool run_master(int argc, char **argv)
+static bool run_master(int argc, char **argv, int mpi_size)
 {
     Options options = {};
     Dictionary dict = {};
     FILE *shadow_file = NULL;
     FILE *result_file = NULL;
 
-    bool init_success = init_master(&options, &dict, &shadow_file, &result_file, argc, argv);
+    bool init_success = init_master(&options, &dict, &shadow_file, &result_file, argc, argv, mpi_size);
 
     // If init successful, try to crack all shadow entries
     if (!options.quiet)
@@ -77,10 +97,21 @@ static bool run_master(int argc, char **argv)
         while (get_next_shadow_entry(&shadow_entry, shadow_file))
         {
             ExtendedCrackResult result;
-            master_crack(&result, &options, &dict, &shadow_entry);
+            master_crack(&result, &options, &dict, &shadow_entry, mpi_size);
             handle_result(&options, &result, &overview_result, result_file);
         }
     }
+
+    //Send ACTION_STOP to all processes
+    CrackJob *jobs = calloc(mpi_size, sizeof(CrackJob));
+    for (int i = 0; i < mpi_size; i++)
+    {
+        jobs[i].action = ACTION_STOP;
+    }
+
+    CrackJob job;
+
+    MPI_Scatter(jobs, sizeof(CrackJob), MPI_BYTE, &job, sizeof(CrackJob), MPI_BYTE, 0, MPI_COMM_WORLD);
 
     // Handle overall result
     handle_overview_result(&options, &overview_result);
@@ -92,7 +123,7 @@ static bool run_master(int argc, char **argv)
 /*
  * Initialize master stuff.
  */
-static bool init_master(Options *options, Dictionary *dict, FILE **shadow_file, FILE **result_file, int argc, char **argv)
+static bool init_master(Options *options, Dictionary *dict, FILE **shadow_file, FILE **result_file, int argc, char **argv, int mpi_size)
 {
     // Parse CLI args
     if (!parse_cli_args(options, argc, argv))
@@ -105,7 +136,7 @@ static bool init_master(Options *options, Dictionary *dict, FILE **shadow_file, 
     if (!options->quiet)
     {
         // TODO
-        //printf("Workers: %d\n", mpi_size);
+        printf("Workers: %d\n", mpi_size);
         printf("Max symbols: %ld\n", options->max_length);
         printf("Symbol separator: \"%s\"\n", options->separator);
     }
@@ -169,7 +200,7 @@ static void master_cleanup(FILE *shadow_file, FILE *result_file, Dictionary *dic
 /*
  * Crack a shadow password entry as master.
  */
-static void master_crack(ExtendedCrackResult *result, Options *options, Dictionary *dict, ShadowEntry *entry)
+static void master_crack(ExtendedCrackResult *result, Options *options, Dictionary *dict, ShadowEntry *entry, int mpi_size)
 {
     // Initialize result
     memset(result, 0, sizeof(ExtendedCrackResult));
@@ -189,9 +220,12 @@ static void master_crack(ExtendedCrackResult *result, Options *options, Dictiona
     config.dict_positions = calloc(options->max_length, sizeof(size_t));
     config.symbols = calloc(options->max_length, MAX_DICT_ELEMENT_LENGTH + 1);
     // TODO allocate and initialize for multiple ranks
-    CrackJob *jobs = calloc(1, sizeof(CrackJob));
-    strncpy(jobs[0].passfield, entry->passfield, MAX_SHADOW_PASSFIELD_LENGTH);
-    CrackResult *results = calloc(1, sizeof(CrackResult));
+    CrackJob *jobs = calloc(mpi_size, sizeof(CrackJob));
+    for (int i = 0; i < mpi_size; i++)
+    {
+        strncpy(jobs[i].passfield, entry->passfield, MAX_SHADOW_PASSFIELD_LENGTH);
+    }
+    CrackResult *results = calloc(mpi_size, sizeof(CrackResult));
 
     // Start time measurement
     // TODO
@@ -203,34 +237,63 @@ static void master_crack(ExtendedCrackResult *result, Options *options, Dictiona
         // Make jobs with new probes
         // TODO for all ranks
         // TODO use ACTION_WAIT for jobs when running out of probes
-        memset(&jobs[0], 0, sizeof(CrackJob));
-        bool more_probes = get_next_probe(&config, options, dict);
-        if (!more_probes)
+
+        for (int i = 0; i < mpi_size; i++)
         {
-            break;
-        }
-        jobs[0].action = ACTION_WORK;
-        strncpy(jobs[0].passfield, entry->passfield, MAX_PASSWORD_LENGTH);
-        jobs[0].alg = entry->alg;
-        jobs[0].salt_end = entry->salt_end;
-        strncpy(jobs[0].probe, config.probe, MAX_PASSWORD_LENGTH);
-        if (options->verbose)
-        {
-            printf("%s\n", jobs[0].probe);
+
+            memset(&jobs[i], 0, sizeof(CrackJob));
+            bool more_probes = get_next_probe(&config, options, dict);
+            if (!more_probes)
+            {
+                jobs[i].action = ACTION_WAIT;
+            }
+            else
+            {
+                jobs[i].action = ACTION_WORK;
+                strncpy(jobs[i].passfield, entry->passfield, MAX_PASSWORD_LENGTH);
+                jobs[i].alg = entry->alg;
+                jobs[i].salt_end = entry->salt_end;
+                strncpy(jobs[i].probe, config.probe, MAX_PASSWORD_LENGTH);
+                if (options->verbose)
+                {
+                    printf("%s\n", jobs[i].probe);
+                }
+            }
         }
 
         // Process job
         // TODO parallelize
-        crack_job(&results[0], &jobs[0]);
+
+        CrackJob job0;
+        CrackResult result0;
+
+        MPI_Scatter(jobs, sizeof(CrackJob), MPI_BYTE, &job0, sizeof(CrackJob), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+        if (job0.action == ACTION_WORK)
+        {
+            crack_job(&result0, &job0);
+        }
+        else
+        {
+            result0.status = STATUS_SKIP;
+        }
+
+        MPI_Gather(&result0, sizeof(CrackResult), MPI_BYTE, results, sizeof(CrackResult), MPI_BYTE, 0, MPI_COMM_WORLD);
 
         // Handle results
         // TODO for all ranks
-        result->attempts++;
-        // Accept if success (currently the only one it makes sense to stop on)
-        if (results[0].status != STATUS_PENDING)
+        for (int i = 0; i < mpi_size; i++)
         {
-            result->status = results[0].status;
-            strncpy(result->password, results[0].password, MAX_PASSWORD_LENGTH);
+            if (results[i].status != STATUS_SKIP)
+            {
+                result->attempts++;
+            }
+            // Accept if success (currently the only one it makes sense to stop on)
+            if (results[i].status == STATUS_SUCCESS)
+            {
+                result->status = results[i].status;
+                strncpy(result->password, results[i].password, MAX_PASSWORD_LENGTH);
+            }
         }
     }
 

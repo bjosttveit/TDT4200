@@ -1,4 +1,9 @@
 Before parallell:
-sha512-1word: 31.859s
-sha512-2alnum: 25.293s
-sha512-common: 4.438s
+sha512-1word: 17.000s
+sha512-2alnum: 16.910s
+sha512-common: 3.242s
+
+After parallell:
+sha512-1word: 5.414s
+sha512-2alnum: 5.274s
+sha512-common: 1.240s
