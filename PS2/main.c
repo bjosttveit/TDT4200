@@ -43,6 +43,8 @@ float const kernelFactors[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0 / 256.0};
 
 int const maxKernelIndex = sizeof(kernelDims) / sizeof(unsigned int);
 
+MPI_Datatype MPI_PIXEL;
+
 // Helper function to swap bmpImageChannel pointers
 
 void swapImage(bmpImage **one, bmpImage **two)
@@ -53,8 +55,8 @@ void swapImage(bmpImage **one, bmpImage **two)
 }
 
 // Apply convolutional kernel on image data
-void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int height, int *kernel, unsigned int kernelDim, float kernelFactor)
-{ //Take in halo pointers and thiccness
+void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int height, int *kernel, unsigned int kernelDim, float kernelFactor, pixel **topHalo, pixel **bottomHalo)
+{
   unsigned int const kernelCenter = (kernelDim / 2);
   for (unsigned int y = 0; y < height; y++)
   {
@@ -70,13 +72,27 @@ void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int heigh
 
           int yy = y + (ky - kernelCenter);
           int xx = x + (kx - kernelCenter);
-          if (xx >= 0 && xx < (int)width && yy >= 0 && yy < (int)height)
+          if (xx >= 0 && xx < (int)width)
           {
-            ar += in[yy][xx].r * kernel[nky * kernelDim + nkx];
-            ag += in[yy][xx].g * kernel[nky * kernelDim + nkx];
-            ab += in[yy][xx].b * kernel[nky * kernelDim + nkx];
+            if (yy >= 0 && yy < (int)height)
+            {
+              ar += in[yy][xx].r * kernel[nky * kernelDim + nkx];
+              ag += in[yy][xx].g * kernel[nky * kernelDim + nkx];
+              ab += in[yy][xx].b * kernel[nky * kernelDim + nkx];
+            }
+            else if (yy < 0)
+            {
+              ar += topHalo[kernelCenter + yy][xx].r * kernel[nky * kernelDim + nkx];
+              ag += topHalo[kernelCenter + yy][xx].g * kernel[nky * kernelDim + nkx];
+              ab += topHalo[kernelCenter + yy][xx].b * kernel[nky * kernelDim + nkx];
+            }
+            else if (yy >= (int)height)
+            {
+              ar += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
+              ag += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
+              ab += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
+            }
           }
-          //ELSE CONDITION USE HALO VALUE
         }
       }
       if (ar || ag || ab)
@@ -98,24 +114,80 @@ void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int heigh
   }
 }
 
-void processRow(bmpImage *out, bmpImage *in, int kernelIndex, int my_rank, int comm_sz, int iterations)
+void processRow(bmpImage *buffer, bmpImage *in, int kernelIndex, int my_rank, int comm_sz, int iterations)
 {
+
+  int const haloThickness = kernelDims[kernelIndex] / 2;
+
+  bmpImage *topSendHalo = newBmpImage(in->width, haloThickness);
+  bmpImage *bottomSendHalo = newBmpImage(in->width, haloThickness);
+  bmpImage *topRecvHalo = newBmpImage(in->width, haloThickness);
+  bmpImage *bottomRecvHalo = newBmpImage(in->width, haloThickness);
+
+  bool evenRank = (my_rank % 2 == 0);
+  bool topRank = (my_rank == 0);
+  bool bottomRank = (my_rank == comm_sz - 1);
+
   for (unsigned int i = 0; i < iterations; i++)
   {
+    if (!topRank)
+    {
+      for (int y = 0; y < haloThickness; y++)
+      {
+        for (int x = 0; x < in->width; x++)
+        {
+          topSendHalo->data[y][x].r = in->data[y][x].r;
+          topSendHalo->data[y][x].g = in->data[y][x].g;
+          topSendHalo->data[y][x].b = in->data[y][x].b;
+        }
+      }
+    }
 
-    //Exchange halos
+    if (!bottomRank)
+    {
+      for (int y = 0; y < haloThickness; y++)
+      {
+        for (int x = 0; x < in->width; x++)
+        {
+          bottomSendHalo->data[y][x].r = in->data[in->height - haloThickness + y][x].r;
+          bottomSendHalo->data[y][x].g = in->data[in->height - haloThickness + y][x].g;
+          bottomSendHalo->data[y][x].b = in->data[in->height - haloThickness + y][x].b;
+        }
+      }
+    }
 
-    applyKernel(out->data,
+    //Even ranks exchange bottom halo first
+    if (evenRank && !bottomRank)
+    {
+      MPI_Sendrecv(bottomSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    //Odd ranks exchange top halo first
+    else if (!evenRank)
+    {
+      MPI_Sendrecv(topSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    //Even ranks exchange top halo second
+    if (evenRank && !topRank)
+    {
+      MPI_Sendrecv(topSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    //Odd ranks exchange bottom halo second
+    else if (!evenRank && !bottomRank)
+    {
+      MPI_Sendrecv(bottomSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    applyKernel(buffer->data,
                 in->data,
                 in->width,
                 in->height,
                 kernels[kernelIndex],
                 kernelDims[kernelIndex],
-                kernelFactors[kernelIndex]);
-                //NorthHaloPointer
-                //SouthHaloPointer
-
-    swapImage(out, in);
+                kernelFactors[kernelIndex],
+                topRecvHalo->data,
+                bottomRecvHalo->data);
+    swapImage(&buffer, &in);
   }
 }
 
@@ -227,57 +299,95 @@ int main(int argc, char **argv)
   /*
     Create the BMP image and load it from disk.
    */
-  //START RANK 1==========================
+  double startTime;
+  bmpImage *image;
+  int width, height;
 
-  bmpImage *image = newBmpImage(0, 0);
-  if (image == NULL)
+  if (my_rank == 0)
   {
-    fprintf(stderr, "Could not allocate new image!\n");
-    goto error_exit;
-  }
 
-  if (loadBmpImage(image, input) != 0)
+    image = newBmpImage(0, 0);
+    if (image == NULL)
+    {
+      fprintf(stderr, "Could not allocate new image!\n");
+      goto error_exit;
+    }
+
+    if (loadBmpImage(image, input) != 0)
+    {
+      fprintf(stderr, "Could not load bmp image '%s'!\n", input);
+      freeBmpImage(image);
+      goto error_exit;
+    }
+
+    width = image->width;
+    height = image->height;
+
+    printf("Apply kernel '%s' on image with %u x %u pixels for %u iterations\n", kernelNames[kernelIndex], image->width, image->height, iterations);
+
+    startTime = MPI_Wtime();
+
+    // Here we do the actual computation!
+    // image->data is a 2-dimensional array of pixel which is accessed row first ([y][x])
+    // each pixel is a struct of 3 unsigned char for the red, blue and green colour channel
+
+    //Distribute rows to bmps
+  }
+  MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &MPI_PIXEL);
+  MPI_Type_commit(&MPI_PIXEL);
+
+  printf("Initilazing...\n");
+
+  //Only rank 0 has the image, but all ranks need dimensions to allocate buffers
+  MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  int *offsets = (int*)malloc(comm_sz * sizeof(int));
+  int *counts = (int*)malloc(comm_sz * sizeof(int));
+
+  int rowHeight = height / comm_sz;
+
+  for (int i = 0; i < comm_sz; i++)
   {
-    fprintf(stderr, "Could not load bmp image '%s'!\n", input);
-    freeBmpImage(image);
-    goto error_exit;
+    offsets[i] = i * rowHeight * width;
+    counts[i] = rowHeight * width;
   }
+  //Last rank takes the 'leftovers' not divisble by the number of ranks
+  counts[comm_sz - 1] = height * width - rowHeight * width * (comm_sz - 1);
 
-  printf("Apply kernel '%s' on image with %u x %u pixels for %u iterations\n", kernelNames[kernelIndex], image->width, image->height, iterations);
+  bmpImage *rowIn = newBmpImage(width, counts[my_rank] / width);
+  bmpImage *rowOut = newBmpImage(width, counts[my_rank] / width);
 
-  double startTime = MPI_Wtime();
+  printf("Scattering...\n");
+  MPI_Scatterv(image->rawdata, counts, offsets, MPI_PIXEL, rowIn->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  // Here we do the actual computation!
-  // image->data is a 2-dimensional array of pixel which is accessed row first ([y][x])
-  // each pixel is a struct of 3 unsigned char for the red, blue and green colour channel
-  bmpImage *processImage = newBmpImage(image->width, image->height);
+  //MPI_SCATTERV
 
-  //Distribute rows to bmps
-
-  //END RANK 1========================
-
-  //MPI_SCATTER
-
-  //processRow
-  
-  freeBmpImage(processImage);
+  printf("Processing...\n");
+  processRow(rowOut, rowIn, kernelIndex, my_rank, comm_sz, iterations);
 
   //MPI_GATHER
 
-  //START RANK 1=======================
+  printf("Gathering...\n");
+  MPI_Gatherv(rowOut->rawdata, counts[my_rank], MPI_PIXEL, image->rawdata, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  double spentTime = MPI_Wtime() - startTime;
-  printf("Time spent: %.3f seconds\n", spentTime);
+  freeBmpImage(rowIn);
+  freeBmpImage(rowOut);
 
-  //Write the image back to disk
-  if (saveBmpImage(image, output) != 0)
+  if (my_rank == 0)
   {
-    fprintf(stderr, "Could not save output to '%s'!\n", output);
-    freeBmpImage(image);
-    goto error_exit;
-  };
 
-  //END RANK 1=========================
+    double spentTime = MPI_Wtime() - startTime;
+    printf("Time spent: %.3f seconds\n", spentTime);
+
+    //Write the image back to disk
+    if (saveBmpImage(image, output) != 0)
+    {
+      fprintf(stderr, "Could not save output to '%s'!\n", output);
+      freeBmpImage(image);
+      goto error_exit;
+    };
+  }
 
 graceful_exit:
   ret = 0;
