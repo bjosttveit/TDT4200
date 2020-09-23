@@ -88,9 +88,9 @@ void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int heigh
             }
             else if (yy >= (int)height)
             {
-              ar += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
-              ag += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
-              ab += topHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
+              ar += bottomHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
+              ag += bottomHalo[yy - height][xx].g * kernel[nky * kernelDim + nkx];
+              ab += bottomHalo[yy - height][xx].b * kernel[nky * kernelDim + nkx];
             }
           }
         }
@@ -119,14 +119,14 @@ void processRow(bmpImage *buffer, bmpImage *in, int kernelIndex, int my_rank, in
 
   int const haloThickness = kernelDims[kernelIndex] / 2;
 
+  bool evenRank = (my_rank % 2 == 0);
+  bool topRank = (my_rank == 0);
+  bool bottomRank = (my_rank == comm_sz - 1);
+
   bmpImage *topSendHalo = newBmpImage(in->width, haloThickness);
   bmpImage *bottomSendHalo = newBmpImage(in->width, haloThickness);
   bmpImage *topRecvHalo = newBmpImage(in->width, haloThickness);
   bmpImage *bottomRecvHalo = newBmpImage(in->width, haloThickness);
-
-  bool evenRank = (my_rank % 2 == 0);
-  bool topRank = (my_rank == 0);
-  bool bottomRank = (my_rank == comm_sz - 1);
 
   for (unsigned int i = 0; i < iterations; i++)
   {
@@ -333,17 +333,17 @@ int main(int argc, char **argv)
 
     //Distribute rows to bmps
   }
+  pixel *imgPtr = image->rawdata;
+
   MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &MPI_PIXEL);
   MPI_Type_commit(&MPI_PIXEL);
-
-  printf("Initilazing...\n");
 
   //Only rank 0 has the image, but all ranks need dimensions to allocate buffers
   MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  int *offsets = (int*)malloc(comm_sz * sizeof(int));
-  int *counts = (int*)malloc(comm_sz * sizeof(int));
+  int *offsets = (int *)malloc(comm_sz * sizeof(int));
+  int *counts = (int *)malloc(comm_sz * sizeof(int));
 
   int rowHeight = height / comm_sz;
 
@@ -355,24 +355,17 @@ int main(int argc, char **argv)
   //Last rank takes the 'leftovers' not divisble by the number of ranks
   counts[comm_sz - 1] = height * width - rowHeight * width * (comm_sz - 1);
 
-  bmpImage *rowIn = newBmpImage(width, counts[my_rank] / width);
-  bmpImage *rowOut = newBmpImage(width, counts[my_rank] / width);
+  bmpImage *rowImage = newBmpImage(width, counts[my_rank] / width);
+  bmpImage *rowBuffer = newBmpImage(width, counts[my_rank] / width);
 
-  printf("Scattering...\n");
-  MPI_Scatterv(image->rawdata, counts, offsets, MPI_PIXEL, rowIn->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(imgPtr, counts, offsets, MPI_PIXEL, rowImage->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  //MPI_SCATTERV
+  processRow(rowBuffer, rowImage, kernelIndex, my_rank, comm_sz, iterations);
 
-  printf("Processing...\n");
-  processRow(rowOut, rowIn, kernelIndex, my_rank, comm_sz, iterations);
+  MPI_Gatherv(rowBuffer->rawdata, counts[my_rank], MPI_PIXEL, imgPtr, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  //MPI_GATHER
-
-  printf("Gathering...\n");
-  MPI_Gatherv(rowOut->rawdata, counts[my_rank], MPI_PIXEL, image->rawdata, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
-
-  freeBmpImage(rowIn);
-  freeBmpImage(rowOut);
+  freeBmpImage(rowImage);
+  freeBmpImage(rowBuffer);
 
   if (my_rank == 0)
   {
