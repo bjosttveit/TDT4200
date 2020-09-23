@@ -55,6 +55,7 @@ void swapImage(bmpImage **one, bmpImage **two)
 }
 
 // Apply convolutional kernel on image data
+// Modified to use halos above and below image
 void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int height, int *kernel, unsigned int kernelDim, float kernelFactor, pixel **topHalo, pixel **bottomHalo)
 {
   unsigned int const kernelCenter = (kernelDim / 2);
@@ -111,83 +112,6 @@ void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int heigh
         out[y][x].b = 0;
       }
     }
-  }
-}
-
-void processRow(bmpImage *buffer, bmpImage *in, int kernelIndex, int my_rank, int comm_sz, int iterations)
-{
-
-  int const haloThickness = kernelDims[kernelIndex] / 2;
-
-  bool evenRank = (my_rank % 2 == 0);
-  bool topRank = (my_rank == 0);
-  bool bottomRank = (my_rank == comm_sz - 1);
-
-  bmpImage *topSendHalo = newBmpImage(in->width, haloThickness);
-  bmpImage *bottomSendHalo = newBmpImage(in->width, haloThickness);
-  bmpImage *topRecvHalo = newBmpImage(in->width, haloThickness);
-  bmpImage *bottomRecvHalo = newBmpImage(in->width, haloThickness);
-
-  for (unsigned int i = 0; i < iterations; i++)
-  {
-    if (!topRank)
-    {
-      for (int y = 0; y < haloThickness; y++)
-      {
-        for (int x = 0; x < in->width; x++)
-        {
-          topSendHalo->data[y][x].r = in->data[y][x].r;
-          topSendHalo->data[y][x].g = in->data[y][x].g;
-          topSendHalo->data[y][x].b = in->data[y][x].b;
-        }
-      }
-    }
-
-    if (!bottomRank)
-    {
-      for (int y = 0; y < haloThickness; y++)
-      {
-        for (int x = 0; x < in->width; x++)
-        {
-          bottomSendHalo->data[y][x].r = in->data[in->height - haloThickness + y][x].r;
-          bottomSendHalo->data[y][x].g = in->data[in->height - haloThickness + y][x].g;
-          bottomSendHalo->data[y][x].b = in->data[in->height - haloThickness + y][x].b;
-        }
-      }
-    }
-
-    //Even ranks exchange bottom halo first
-    if (evenRank && !bottomRank)
-    {
-      MPI_Sendrecv(bottomSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    //Odd ranks exchange top halo first
-    else if (!evenRank)
-    {
-      MPI_Sendrecv(topSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-
-    //Even ranks exchange top halo second
-    if (evenRank && !topRank)
-    {
-      MPI_Sendrecv(topSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    //Odd ranks exchange bottom halo second
-    else if (!evenRank && !bottomRank)
-    {
-      MPI_Sendrecv(bottomSendHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, in->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-
-    applyKernel(buffer->data,
-                in->data,
-                in->width,
-                in->height,
-                kernels[kernelIndex],
-                kernelDims[kernelIndex],
-                kernelFactors[kernelIndex],
-                topRecvHalo->data,
-                bottomRecvHalo->data);
-    swapImage(&buffer, &in);
   }
 }
 
@@ -324,13 +248,9 @@ int main(int argc, char **argv)
     printf("Apply kernel '%s' on image with %u x %u pixels for %u iterations\n", kernelNames[kernelIndex], image->width, image->height, iterations);
 
     startTime = MPI_Wtime();
-
-    // Here we do the actual computation!
-    // image->data is a 2-dimensional array of pixel which is accessed row first ([y][x])
-    // each pixel is a struct of 3 unsigned char for the red, blue and green colour channel
-
-    //Distribute rows to bmps
   }
+
+  //Define MPI type for transfering pixels
   MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &MPI_PIXEL);
   MPI_Type_commit(&MPI_PIXEL);
 
@@ -338,6 +258,7 @@ int main(int argc, char **argv)
   MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+  //Calculate height and start for each rank's row
   int *offsets = (int *)malloc(comm_sz * sizeof(int));
   int *counts = (int *)malloc(comm_sz * sizeof(int));
 
@@ -351,13 +272,91 @@ int main(int argc, char **argv)
   //Last rank takes the 'leftovers' not divisble by the number of ranks
   counts[comm_sz - 1] = height * width - rowHeight * width * (comm_sz - 1);
 
+  //Allocate buffers for my row
   bmpImage *rowImage = newBmpImage(width, counts[my_rank] / width);
   bmpImage *rowBuffer = newBmpImage(width, counts[my_rank] / width);
 
+  //Scatter image
   MPI_Scatterv(image->rawdata, counts, offsets, MPI_PIXEL, rowImage->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  processRow(rowBuffer, rowImage, kernelIndex, my_rank, comm_sz, iterations);
+  //Works with any size kernel
+  int const haloThickness = kernelDims[kernelIndex] / 2;
+  //Check if rank is even or odd to prevent deadlock
+  bool evenRank = (my_rank % 2 == 0);
+  bool topRank = (my_rank == 0);
+  bool bottomRank = (my_rank == comm_sz - 1);
 
+  //Allocate buffers for sendRecv
+  bmpImage *topSendHalo = newBmpImage(rowImage->width, haloThickness);
+  bmpImage *bottomSendHalo = newBmpImage(rowImage->width, haloThickness);
+  bmpImage *topRecvHalo = newBmpImage(rowImage->width, haloThickness);
+  bmpImage *bottomRecvHalo = newBmpImage(rowImage->width, haloThickness);
+
+  //Repeats every iteration
+  for (unsigned int i = 0; i < iterations; i++)
+  {
+    //Copy data from my row to halo to be sent out
+    if (!topRank)
+    {
+      for (int y = 0; y < haloThickness; y++)
+      {
+        for (int x = 0; x < rowImage->width; x++)
+        {
+          topSendHalo->data[y][x].r = rowImage->data[y][x].r;
+          topSendHalo->data[y][x].g = rowImage->data[y][x].g;
+          topSendHalo->data[y][x].b = rowImage->data[y][x].b;
+        }
+      }
+    }
+
+    if (!bottomRank)
+    {
+      for (int y = 0; y < haloThickness; y++)
+      {
+        for (int x = 0; x < rowImage->width; x++)
+        {
+          bottomSendHalo->data[y][x].r = rowImage->data[rowImage->height - haloThickness + y][x].r;
+          bottomSendHalo->data[y][x].g = rowImage->data[rowImage->height - haloThickness + y][x].g;
+          bottomSendHalo->data[y][x].b = rowImage->data[rowImage->height - haloThickness + y][x].b;
+        }
+      }
+    }
+
+    //Even ranks exchange bottom halo first
+    if (evenRank && !bottomRank)
+    {
+      MPI_Sendrecv(bottomSendHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    //Odd ranks exchange top halo first
+    else if (!evenRank)
+    {
+      MPI_Sendrecv(topSendHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    //Even ranks exchange top halo second
+    if (evenRank && !topRank)
+    {
+      MPI_Sendrecv(topSendHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, topRecvHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    //Odd ranks exchange bottom halo second
+    else if (!evenRank && !bottomRank)
+    {
+      MPI_Sendrecv(bottomSendHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    applyKernel(rowBuffer->data,
+                rowImage->data,
+                rowImage->width,
+                rowImage->height,
+                kernels[kernelIndex],
+                kernelDims[kernelIndex],
+                kernelFactors[kernelIndex],
+                topRecvHalo->data,
+                bottomRecvHalo->data);
+    swapImage(&rowBuffer, &rowImage);
+  }
+
+  //Gather all rows in original image-buffer
   MPI_Gatherv(rowImage->rawdata, counts[my_rank], MPI_PIXEL, image->rawdata, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
 
   freeBmpImage(rowImage);
