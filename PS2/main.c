@@ -300,13 +300,11 @@ int main(int argc, char **argv)
     Create the BMP image and load it from disk.
    */
   double startTime;
-  bmpImage *image;
+  bmpImage *image = newBmpImage(0, 0);
   int width, height;
 
   if (my_rank == 0)
   {
-
-    image = newBmpImage(0, 0);
     if (image == NULL)
     {
       fprintf(stderr, "Could not allocate new image!\n");
@@ -333,8 +331,6 @@ int main(int argc, char **argv)
 
     //Distribute rows to bmps
   }
-  pixel *imgPtr = image->rawdata;
-
   MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &MPI_PIXEL);
   MPI_Type_commit(&MPI_PIXEL);
 
@@ -358,11 +354,11 @@ int main(int argc, char **argv)
   bmpImage *rowImage = newBmpImage(width, counts[my_rank] / width);
   bmpImage *rowBuffer = newBmpImage(width, counts[my_rank] / width);
 
-  MPI_Scatterv(imgPtr, counts, offsets, MPI_PIXEL, rowImage->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(image->rawdata, counts, offsets, MPI_PIXEL, rowImage->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
 
   processRow(rowBuffer, rowImage, kernelIndex, my_rank, comm_sz, iterations);
 
-  MPI_Gatherv(rowBuffer->rawdata, counts[my_rank], MPI_PIXEL, imgPtr, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(rowImage->rawdata, counts[my_rank], MPI_PIXEL, image->rawdata, counts, offsets, MPI_PIXEL, 0, MPI_COMM_WORLD);
 
   freeBmpImage(rowImage);
   freeBmpImage(rowBuffer);
