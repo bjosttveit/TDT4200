@@ -43,8 +43,6 @@ float const kernelFactors[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0 / 256.0};
 
 int const maxKernelIndex = sizeof(kernelDims) / sizeof(unsigned int);
 
-MPI_Datatype MPI_PIXEL;
-
 // Helper function to swap bmpImageChannel pointers
 
 void swapImage(bmpImage **one, bmpImage **two)
@@ -251,6 +249,7 @@ int main(int argc, char **argv)
   }
 
   //Define MPI type for transfering pixels
+  MPI_Datatype MPI_PIXEL;
   MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &MPI_PIXEL);
   MPI_Type_commit(&MPI_PIXEL);
 
@@ -295,7 +294,7 @@ int main(int argc, char **argv)
   //Repeats every iteration
   for (unsigned int i = 0; i < iterations; i++)
   {
-    //Copy data from my row to halo to be sent out
+    //Copy data from my row to top halo to be sent out
     if (!topRank)
     {
       for (int y = 0; y < haloThickness; y++)
@@ -308,7 +307,7 @@ int main(int argc, char **argv)
         }
       }
     }
-
+    //Copy data from my row to bottom halo to be sent out
     if (!bottomRank)
     {
       for (int y = 0; y < haloThickness; y++)
