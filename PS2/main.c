@@ -71,20 +71,24 @@ void applyKernel(pixel **out, pixel **in, unsigned int width, unsigned int heigh
 
           int yy = y + (ky - kernelCenter);
           int xx = x + (kx - kernelCenter);
+          //If within image's width
           if (xx >= 0 && xx < (int)width)
           {
+            //If within image's height. Use pixels from image as normal
             if (yy >= 0 && yy < (int)height)
             {
               ar += in[yy][xx].r * kernel[nky * kernelDim + nkx];
               ag += in[yy][xx].g * kernel[nky * kernelDim + nkx];
               ab += in[yy][xx].b * kernel[nky * kernelDim + nkx];
             }
+            //If above image use pixels from topHalo
             else if (yy < 0)
             {
               ar += topHalo[kernelCenter + yy][xx].r * kernel[nky * kernelDim + nkx];
               ag += topHalo[kernelCenter + yy][xx].g * kernel[nky * kernelDim + nkx];
               ab += topHalo[kernelCenter + yy][xx].b * kernel[nky * kernelDim + nkx];
             }
+            //If below image use pixels from bottomHalo
             else if (yy >= (int)height)
             {
               ar += bottomHalo[yy - height][xx].r * kernel[nky * kernelDim + nkx];
@@ -268,17 +272,17 @@ int main(int argc, char **argv)
     offsets[i] = i * rowHeight * width;
     counts[i] = rowHeight * width;
   }
-  //Last rank takes the 'leftovers' not divisble by the number of ranks
+  //Last rank takes the 'leftover' rows not divisble by the number of ranks
   counts[comm_sz - 1] = height * width - rowHeight * width * (comm_sz - 1);
 
   //Allocate buffers for my row
   bmpImage *rowImage = newBmpImage(width, counts[my_rank] / width);
   bmpImage *rowBuffer = newBmpImage(width, counts[my_rank] / width);
 
-  //Scatter image
+  //Distribute image in rows to all ranks
   MPI_Scatterv(image->rawdata, counts, offsets, MPI_PIXEL, rowImage->rawdata, counts[my_rank], MPI_PIXEL, 0, MPI_COMM_WORLD);
 
-  //Works with any size kernel
+  //Get halowidth based on kernel size
   int const haloThickness = kernelDims[kernelIndex] / 2;
   //Check if rank is even or odd to prevent deadlock
   bool evenRank = (my_rank % 2 == 0);
@@ -343,6 +347,7 @@ int main(int argc, char **argv)
       MPI_Sendrecv(bottomSendHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, bottomRecvHalo->rawdata, rowImage->width * haloThickness, MPI_PIXEL, my_rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
+    //Applykernel is modified to include halos seperately
     applyKernel(rowBuffer->data,
                 rowImage->data,
                 rowImage->width,
