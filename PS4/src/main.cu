@@ -215,7 +215,7 @@ static void crack(ExtendedCrackResult *total_result, Options *options, Dictionar
 
         // Copy results from device
         // TODO
-        cudaMemcpy(deviceCrackResults, hostCrackResults, TOTAL_THREAD_COUNT * sizeof(CrackResult), cudaMemcpyDeviceToHost);
+        cudaMemcpy(hostCrackResults, deviceCrackResults, TOTAL_THREAD_COUNT * sizeof(CrackResult), cudaMemcpyDeviceToHost);
 
         // Check for error
         cudaError_t error = cudaPeekAtLastError();
