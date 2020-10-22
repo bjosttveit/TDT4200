@@ -386,8 +386,8 @@ static void handle_overview_result(Options *options, OverviewCrackResult *result
  */
  __global__ static void crack_job(CrackResult results[], CrackJob jobs[]) {
     // TODO set using unique index into arrays
-    CrackResult *result = &results[blockIdx.x * BLOCK_SIZE + threadIdx.x];
-    CrackJob *job = &jobs[blockIdx.x * BLOCK_SIZE + threadIdx.x];
+    CrackResult *result = results + blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    CrackJob *job = jobs + blockIdx.x * BLOCK_SIZE + threadIdx.x;
 
     // Zeroize result
     result->status = STATUS_PENDING;
