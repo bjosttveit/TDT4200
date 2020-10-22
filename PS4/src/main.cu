@@ -16,7 +16,11 @@ static bool prepare_job(CrackJob *job, ShadowEntry *entry, ProbeConfig *config, 
 static bool get_next_probe(ProbeConfig *config, Options *options, Dictionary *dict);
 static void handle_result(Options *options, ExtendedCrackResult *result, OverviewCrackResult *overview_result, FILE *result_file);
 static void handle_overview_result(Options *options, OverviewCrackResult *overview_result);
-static void crack_job(CrackResult results[], CrackJob jobs[]);
+__global__ static void crack_job(CrackResult results[], CrackJob jobs[]);
+
+#define GRID_SIZE 16
+#define BLOCK_SIZE 128
+#define TOTAL_THREAD_COUNT GRID_SIZE * BLOCK_SIZE
 
 /*
  * Main entrypoint.
@@ -111,6 +115,7 @@ static bool init_cuda() {
     // Make sure at least one CUDA-capable device exists
     int device_count;
     // TODO get device count
+    cudaGetDeviceCount(&device_count);
     printf("CUDA device count: %d\n", device_count);
     if (device_count < 1) {
         fprintf(stderr, "No CUDA devices present.\n");
@@ -120,6 +125,7 @@ static bool init_cuda() {
     // Print some useful info
     cudaDeviceProp prop;
     // TODO get device properties
+    cudaGetDeviceProperties(&prop, 0);
     printf("CUDA device #0:\n");
     printf("\tName: %s\n", prop.name);
     printf("\tCompute capability: %d.%d\n", prop.major, prop.minor);
@@ -175,6 +181,13 @@ static void crack(ExtendedCrackResult *total_result, Options *options, Dictionar
     config.symbols = (char (*)[MAX_DICT_ELEMENT_LENGTH + 1]) malloc(options->max_length * (MAX_DICT_ELEMENT_LENGTH + 1) * sizeof(char));
 
     // TODO allocate host and device arrays for CrackJobs and CrackResults
+    CrackJob *hostCrackJobs = (CrackJob*)malloc(TOTAL_THREAD_COUNT * sizeof(CrackJob));
+    CrackResult *hostCrackResults = (CrackResult*)malloc(TOTAL_THREAD_COUNT * sizeof(CrackResult));
+    
+    CrackJob *deviceCrackJobs;
+    cudaMalloc((void**)&deviceCrackJobs, TOTAL_THREAD_COUNT * sizeof(CrackJob));
+    CrackResult *deviceCrackResults;
+    cudaMalloc((void**)&deviceCrackResults, TOTAL_THREAD_COUNT * sizeof(CrackResult));
 
     // Start time measurement
     struct timespec start_time, end_time;
@@ -185,8 +198,8 @@ static void crack(ExtendedCrackResult *total_result, Options *options, Dictionar
         // Prepare new jobs
         bool more_probes = true;
         // TODO fill host job array with new jobs
-        for (size_t i = 0; i < ???; i++) {
-            if (!prepare_job(&???[i], entry, &config, options, dict)) {
+        for (size_t i = 0; i < TOTAL_THREAD_COUNT; i++) {
+            if (!prepare_job(&hostCrackJobs[i], entry, &config, options, dict)) {
                 more_probes = false;
                 break;
             }
@@ -194,12 +207,15 @@ static void crack(ExtendedCrackResult *total_result, Options *options, Dictionar
 
         // Copy jobs to device
         // TODO
+        cudaMemcpy(deviceCrackJobs, hostCrackJobs, TOTAL_THREAD_COUNT * sizeof(CrackJob), cudaMemcpyHostToDevice);
 
         // Start kernel
         // TODO
+        crack_job<<<GRID_SIZE,BLOCK_SIZE>>>(deviceCrackResults, deviceCrackJobs);
 
         // Copy results from device
         // TODO
+        cudaMemcpy(deviceCrackResults, hostCrackResults, TOTAL_THREAD_COUNT * sizeof(CrackResult), cudaMemcpyHostToDevice);
 
         // Check for error
         cudaError_t error = cudaPeekAtLastError();
@@ -210,8 +226,8 @@ static void crack(ExtendedCrackResult *total_result, Options *options, Dictionar
         }
 
         // Handle results
-        for (size_t i = 0; i < ???; i++) {
-            CrackResult *result = &???[i];
+        for (size_t i = 0; i < TOTAL_THREAD_COUNT; i++) {
+            CrackResult *result = &hostCrackResults[i];
 
             // Skip if skip
             if (total_result->status == STATUS_SKIP) {
@@ -368,10 +384,10 @@ static void handle_overview_result(Options *options, OverviewCrackResult *result
 /*
  * Hash probe and compare.
  */
-static void crack_job(CrackResult results[], CrackJob jobs[]) {
+ __global__ static void crack_job(CrackResult results[], CrackJob jobs[]) {
     // TODO set using unique index into arrays
-    CrackResult *result = ???;
-    CrackJob *job = ???;
+    CrackResult *result = &results[blockIdx.x * BLOCK_SIZE + threadIdx.x];
+    CrackJob *job = &jobs[blockIdx.x * BLOCK_SIZE + threadIdx.x];
 
     // Zeroize result
     result->status = STATUS_PENDING;
