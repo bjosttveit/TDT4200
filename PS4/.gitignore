@@ -2,3 +2,4 @@
 /output.txt
 *.o
 data
+src/lib
