@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
-  cudaError_t error = cudaPeekAtLastError();
+  error = cudaPeekAtLastError();
   if (error) {
       fprintf(stderr, "A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
       total_result->status = STATUS_ERROR;
