@@ -305,6 +305,8 @@ int main(int argc, char **argv) {
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
+  cudaErrorCheck();
+
   // TODO: Stop CUDA timer
   cudaEventRecord(stop);
 
