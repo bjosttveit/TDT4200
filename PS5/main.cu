@@ -23,27 +23,27 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 // Convolutional Filter Examples, each with dimension 3,
 // gaussian filter with dimension 5
 
-__constant__ int sobelYFilter[] = {-1, -2, -1,
+int sobelYFilter[] = {-1, -2, -1,
                        0,  0,  0,
                        1,  2,  1};
 
-__constant__ int sobelXFilter[] = {-1, -0, 1,
+int sobelXFilter[] = {-1, -0, 1,
                       -2,  0, 2,
                       -1,  0, 1};
 
-__constant__ int laplacian1Filter[] = { -1,  -4,  -1,
+int laplacian1Filter[] = { -1,  -4,  -1,
                            -4,  20,  -4,
                            -1,  -4,  -1};
 
-__constant__ int laplacian2Filter[] = { 0,  1,  0,
+int laplacian2Filter[] = { 0,  1,  0,
                            1, -4,  1,
                            0,  1,  0};
 
-__constant__ int laplacian3Filter[] = { -1,  -1,  -1,
+int laplacian3Filter[] = { -1,  -1,  -1,
                            -1,   8,  -1,
                            -1,  -1,  -1};
 
-__constant__ int gaussianFilter[] = { 1,  4,  6,  4, 1,
+int gaussianFilter[] = { 1,  4,  6,  4, 1,
                          4, 16, 24, 16, 4,
                          6, 24, 36, 24, 6,
                          4, 16, 24, 16, 4,
@@ -277,11 +277,13 @@ int main(int argc, char **argv) {
   // TODO: Cuda malloc and memcpy the rawdata from the images, from host side to device side
   pixel *devicePixelsIn;
   pixel *devicePixelsOut;
+  int *filter;
   cudaMalloc((void**)&devicePixelsIn, image->width * image->height * sizeof(pixel));
   cudaMalloc((void**)&devicePixelsOut, image->width * image->height * sizeof(pixel));
+  cudaMalloc((void**)&filter, filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int));
   cudaMemcpy(devicePixelsIn, image->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice);
   cudaMemcpy(devicePixelsOut, processImage->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice);
-
+  cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
 
@@ -295,7 +297,7 @@ int main(int argc, char **argv) {
 		    devicePixelsIn,
 		    image->width,
 		    image->height,
-		    filters[filterIndex],
+		    filter,
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
     );
