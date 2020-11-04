@@ -302,12 +302,12 @@ int main(int argc, char **argv) {
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
+  // TODO: Copy back rawdata from images
+  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
+
   // TODO: Stop CUDA timer
   cudaDeviceSynchronize();
   clock_t t2 = clock();
-
-  // TODO: Copy back rawdata from images
-  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
   float spentTime = (t2 - t1)/CLOCKS_PER_SEC;
