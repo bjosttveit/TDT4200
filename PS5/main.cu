@@ -300,16 +300,17 @@ int main(int argc, char **argv) {
 		    filterFactors[filterIndex]
     );
     //swapImage(&processImage, &image);
+    cudaDeviceSynchronize();
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
   cudaError_t error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "1: A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "1: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Stop CUDA timer
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
   clock_t t2 = clock();
 
   // TODO: Copy back rawdata from images
@@ -318,7 +319,7 @@ int main(int argc, char **argv) {
   
   error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "2: A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "2: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Calculate and print elapsed time
