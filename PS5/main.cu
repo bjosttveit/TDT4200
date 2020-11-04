@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
 
   // TODO: Calculate and print elapsed time
   float spentTime = (t2 - t1)/CLOCKS_PER_SEC;
-  printf("Time spent: %.3f seconds\n", spentTime/1000);
+  printf("Time spent: %.3f seconds\n", spentTime);
 
   freeBmpImage(processImage);
   //Write the image back to disk
