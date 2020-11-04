@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
   cudaEventRecord(stop);
 
   // TODO: Copy back rawdata from images
-  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
+  cudaMemcpy(image->rawdata, devicePixelsOut, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
   cudaEventSynchronize(stop);
