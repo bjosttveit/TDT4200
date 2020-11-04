@@ -306,14 +306,14 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
+  cudaDeviceSynchronize();
   cudaEventRecord(stop);
 
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
-  cudaDeviceSynchronize();
-  float spentTime = 0;
+  float spentTime = 0.0;
   cudaEventElapsedTime(&spentTime, start, stop);
   printf("Time spent: %.3f seconds\n", spentTime/1000);
 
