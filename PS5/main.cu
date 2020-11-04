@@ -286,10 +286,7 @@ int main(int argc, char **argv) {
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
 
   // TODO: Intialize and start CUDA timer
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  cudaEventRecord(start);
+  clock_t t1 = clock();
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
@@ -306,15 +303,14 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
-  cudaEventRecord(stop);
+  cudaDeviceSynchronize();
+  clock_t t2 = clock();
 
   // TODO: Copy back rawdata from images
-  cudaMemcpy(image->rawdata, devicePixelsOut, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
+  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
-  cudaEventSynchronize(stop);
-  float spentTime = 0;
-  cudaEventElapsedTime(&spentTime, start, stop);
+  float spentTime = (double)(t2 - t1))/CLOCKS_PER_SEC;
   printf("Time spent: %.3f seconds\n", spentTime/1000);
 
   freeBmpImage(processImage);
