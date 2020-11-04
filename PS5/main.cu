@@ -306,8 +306,6 @@ int main(int argc, char **argv) {
   cudaError_t error = cudaPeekAtLastError();
   if (error) {
       fprintf(stderr, "A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
-      total_result->status = STATUS_ERROR;
-      break;
   }
 
   // TODO: Stop CUDA timer
@@ -320,8 +318,6 @@ int main(int argc, char **argv) {
   error = cudaPeekAtLastError();
   if (error) {
       fprintf(stderr, "A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
-      total_result->status = STATUS_ERROR;
-      break;
   }
 
   // TODO: Calculate and print elapsed time
