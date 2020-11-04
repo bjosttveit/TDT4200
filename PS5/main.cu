@@ -279,8 +279,8 @@ int main(int argc, char **argv) {
   pixel *devicePixelsOut;
   cudaMalloc((void**)&devicePixelsIn, image->width * image->height * sizeof(pixel));
   cudaMalloc((void**)&devicePixelsOut, image->width * image->height * sizeof(pixel));
-  cudaMemcpy(devicePixelsIn, image->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice)
-  cudaMemcpy(devicePixelsOut, processImage->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice)
+  cudaMemcpy(devicePixelsIn, image->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice);
+  cudaMemcpy(devicePixelsOut, processImage->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice);
 
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
