@@ -301,19 +301,26 @@ int main(int argc, char **argv) {
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
     );
+
+    cudaError_t error = cudaPeekAtLastError();
+    if (error) {
+        fprintf(stderr, "A CUDA error has occurred while initializing: %s\n", cudaGetErrorString(error));
+        return false;
+    }
+
     //swapImage(&processImage, &image);
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
   // TODO: Stop CUDA timer
-  cudaDeviceSynchronize();
   cudaEventRecord(stop);
 
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
-  float spentTime = 0.0;
+  cudaEventSynchronize(stop);
+  float spentTime = 0;
   cudaEventElapsedTime(&spentTime, start, stop);
   printf("Time spent: %.3f seconds\n", spentTime/1000);
 
