@@ -293,14 +293,14 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    cudaErrorCheck(applyFilterDevice<<<1,1>>>(processImage->rawdata,
+    cudaErrorCheck(applyFilterDevice<<<1,1>>>)(processImage->rawdata,
 		    image->rawdata,
 		    image->width,
 		    image->height,
 		    filters[filterIndex],
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
-    ));
+    );
     //swapImage(&processImage, &image);
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
