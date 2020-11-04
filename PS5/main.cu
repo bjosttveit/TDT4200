@@ -23,27 +23,27 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 // Convolutional Filter Examples, each with dimension 3,
 // gaussian filter with dimension 5
 
-int sobelYFilter[] = {-1, -2, -1,
+__constant__ int sobelYFilter[] = {-1, -2, -1,
                        0,  0,  0,
                        1,  2,  1};
 
-int sobelXFilter[] = {-1, -0, 1,
+__constant__ int sobelXFilter[] = {-1, -0, 1,
                       -2,  0, 2,
                       -1,  0, 1};
 
-int laplacian1Filter[] = { -1,  -4,  -1,
+__constant__ int laplacian1Filter[] = { -1,  -4,  -1,
                            -4,  20,  -4,
                            -1,  -4,  -1};
 
-int laplacian2Filter[] = { 0,  1,  0,
+__constant__ int laplacian2Filter[] = { 0,  1,  0,
                            1, -4,  1,
                            0,  1,  0};
 
-int laplacian3Filter[] = { -1,  -1,  -1,
+__constant__ int laplacian3Filter[] = { -1,  -1,  -1,
                            -1,   8,  -1,
                            -1,  -1,  -1};
 
-int gaussianFilter[] = { 1,  4,  6,  4, 1,
+__constant__ int gaussianFilter[] = { 1,  4,  6,  4, 1,
                          4, 16, 24, 16, 4,
                          6, 24, 36, 24, 6,
                          4, 16, 24, 16, 4,
