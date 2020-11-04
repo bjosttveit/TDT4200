@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
 
   cudaError_t error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "1: A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Stop CUDA timer
@@ -315,9 +315,10 @@ int main(int argc, char **argv) {
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
+  
   error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "2: A CUDA error has occurred while cracking: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Calculate and print elapsed time
