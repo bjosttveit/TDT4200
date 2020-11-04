@@ -123,6 +123,42 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
   }
 }
 
+// Apply convolutional filter on image data
+__global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
+  unsigned int const filterCenter = (filterDim / 2);
+  for (unsigned int y = 0; y < height; y++) {
+    for (unsigned int x = 0; x < width; x++) {
+      int ar = 0, ag = 0, ab = 0;
+      for (unsigned int ky = 0; ky < filterDim; ky++) {
+        int nky = filterDim - 1 - ky;
+        for (unsigned int kx = 0; kx < filterDim; kx++) {
+          int nkx = filterDim - 1 - kx;
+
+          int yy = y + (ky - filterCenter);
+          int xx = x + (kx - filterCenter);
+          if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
+            ar += in[yy*width + xx].r * filter[nky * filterDim + nkx];
+            ag += in[yy*width + xx].g * filter[nky * filterDim + nkx];
+            ab += in[yy*width + xx].b * filter[nky * filterDim + nkx];
+          }
+        }
+      }
+
+      ar *= filterFactor;
+      ag *= filterFactor;
+      ab *= filterFactor;
+      
+      ar = (ar < 0) ? 0 : ar;
+      ag = (ag < 0) ? 0 : ag;
+      ab = (ab < 0) ? 0 : ab;
+
+      out[y*width +x].r = (ar > 255) ? 255 : ar;
+      out[y*width +x].g = (ag > 255) ? 255 : ag;
+      out[y*width +x].b = (ab > 255) ? 255 : ab;
+    }
+  }
+}
+
 void help(char const *exec, char const opt, char const *optarg) {
     FILE *out = stdout;
     if (opt != 0) {
@@ -239,10 +275,18 @@ int main(int argc, char **argv) {
   bmpImage *processImage = newBmpImage(image->width, image->height);
 
   // TODO: Cuda malloc and memcpy the rawdata from the images, from host side to device side
+  pixel *devicePixelsIn;
+  pixel *devicePixelsOut;
+  cudaMalloc((void**)&devicePixelsIn, image->width * image->height * sizeof(pixel));
+  cudaMalloc((void**)&devicePixelsOut, image->width * image->height * sizeof(pixel));
+  cudaMemcpy(devicePixelsIn, image->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice)
+  cudaMemcpy(devicePixelsOut, processImage->rawdata, image->width * image->height * sizeof(pixel), cudaMemcpyHostToDevice)
+
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
 
   // TODO: Intialize and start CUDA timer
+  t1 = myCPUTimer();
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
@@ -259,11 +303,13 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
+  cudaDeviceSynchronize();
+  t2 = myCPUTimer();
 
   // TODO: Copy back rawdata from images
 
   // TODO: Calculate and print elapsed time
-  float spentTime = 0.0;
+  float spentTime = t2 - t1;
   printf("Time spent: %.3f seconds\n", spentTime/1000);
 
   freeBmpImage(processImage);
