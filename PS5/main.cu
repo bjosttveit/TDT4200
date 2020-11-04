@@ -293,21 +293,14 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<1,1>>>(processImage->rawdata,
-		    image->rawdata,
+    applyFilterDevice<<<1,1>>>(devicePixelsOut,
+		    devicePixelsIn,
 		    image->width,
 		    image->height,
 		    filters[filterIndex],
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
     );
-
-    cudaError_t error = cudaPeekAtLastError();
-    if (error) {
-        fprintf(stderr, "A CUDA error has occurred while initializing: %s\n", cudaGetErrorString(error));
-        return false;
-    }
-
     //swapImage(&processImage, &image);
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
