@@ -293,7 +293,7 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    cudaErrorCheck(applyFilterDevice<<<1,1>>>)(processImage->rawdata,
+    applyFilterDevice<<<1,1>>>(processImage->rawdata,
 		    image->rawdata,
 		    image->width,
 		    image->height,
@@ -305,8 +305,6 @@ int main(int argc, char **argv) {
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
-  
-
   // TODO: Stop CUDA timer
   cudaEventRecord(stop);
 
@@ -314,7 +312,7 @@ int main(int argc, char **argv) {
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
-  cudaEventSynchronize(stop);
+  cudaDeviceSynchronize();
   float spentTime = 0;
   cudaEventElapsedTime(&spentTime, start, stop);
   printf("Time spent: %.3f seconds\n", spentTime/1000);
