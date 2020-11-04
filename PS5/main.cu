@@ -293,7 +293,7 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilter(processImage->rawdata,
+    applyFilterDevice<<<1,1>>>(processImage->rawdata,
 		    image->rawdata,
 		    image->width,
 		    image->height,
@@ -301,8 +301,8 @@ int main(int argc, char **argv) {
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
     );
-    swapImage(&processImage, &image);
-    //swapImageRawdata(&?, &?);
+    //swapImage(&processImage, &image);
+    swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
   // TODO: Stop CUDA timer
