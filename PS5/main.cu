@@ -302,7 +302,6 @@ int main(int argc, char **argv) {
 		    filterFactors[filterIndex]
     );
     //swapImage(&processImage, &image);
-    cudaDeviceSynchronize();
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
@@ -312,7 +311,7 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
-  //cudaDeviceSynchronize();
+  cudaDeviceSynchronize();
   clock_t t2 = clock();
 
   // TODO: Copy back rawdata from images
