@@ -124,7 +124,7 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
 }
 
 // Apply convolutional filter on image data
-__global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
+__global__ void applyFilterDevice(pixel out[], pixel in[], unsigned int width, unsigned int height, int filter[], unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
   for (unsigned int y = 0; y < height; y++) {
     for (unsigned int x = 0; x < width; x++) {
@@ -290,7 +290,8 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<1,1>>>(devicePixelsOut,
+    applyFilterDevice<<<1,1>>>(
+        devicePixelsOut,
 		    devicePixelsIn,
 		    image->width,
 		    image->height,
@@ -302,12 +303,12 @@ int main(int argc, char **argv) {
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
-  // TODO: Copy back rawdata from images
-  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
-
   // TODO: Stop CUDA timer
   cudaDeviceSynchronize();
   clock_t t2 = clock();
+
+  // TODO: Copy back rawdata from images
+  cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
 
   // TODO: Calculate and print elapsed time
   float spentTime = (t2 - t1)/CLOCKS_PER_SEC;
