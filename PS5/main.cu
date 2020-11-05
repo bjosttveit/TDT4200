@@ -130,8 +130,8 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
 // Apply convolutional filter on image data
 __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
-  unsigned int y_start = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x)
-  unsigned int y_end = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x + 1)
+  unsigned int y_start = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x);
+  unsigned int y_end = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x + 1);
   for (unsigned int y = y_start; y < y_end; y++) {
     for (unsigned int x = 0; x < width; x++) {
       int ar = 0, ag = 0, ab = 0;
