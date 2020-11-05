@@ -131,7 +131,7 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
 __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
   for (unsigned int y = blockIdx.x * BLOCK_SIZE + threadIdx.x; y < height; y+=TOTAL_THREAD_COUNT) {
-    for (unsigned int x = blockIdx.x * BLOCK_SIZE + threadIdx.x; x < width; x+=TOTAL_THREAD_COUNT) {
+    for (unsigned int x = 0; x < width; x++) {
       int ar = 0, ag = 0, ab = 0;
       for (unsigned int ky = 0; ky < filterDim; ky++) {
         int nky = filterDim - 1 - ky;
