@@ -20,6 +20,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
        }
 }
 
+#define GRID_SIZE 16
+#define BLOCK_SIZE 128
+#define TOTAL_THREAD_COUNT GRID_SIZE * BLOCK_SIZE
+
 // Convolutional Filter Examples, each with dimension 3,
 // gaussian filter with dimension 5
 
@@ -126,8 +130,8 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
 // Apply convolutional filter on image data
 __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
-  for (unsigned int y = 0; y < height; y++) {
-    for (unsigned int x = 0; x < width; x++) {
+  for (unsigned int y = blockIdx.x * BLOCK_SIZE + threadIdx.x; y < height; y+=TOTAL_THREAD_COUNT) {
+    for (unsigned int x = blockIdx.x * BLOCK_SIZE + threadIdx.x; x < width; x+=TOTAL_THREAD_COUNT) {
       int ar = 0, ag = 0, ab = 0;
       for (unsigned int ky = 0; ky < filterDim; ky++) {
         int nky = filterDim - 1 - ky;
@@ -286,13 +290,14 @@ int main(int argc, char **argv) {
   cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
+  
 
   // TODO: Intialize and start CUDA timer
   clock_t t1 = clock();
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<1,1>>>(
+    applyFilterDevice<<<GRID_SIZE,BLOCK_SIZE>>>(
         devicePixelsOut,
 		    devicePixelsIn,
 		    image->width,
