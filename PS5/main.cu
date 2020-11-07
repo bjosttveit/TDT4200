@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
 
   // TODO: Calculate and print elapsed time
   double spentTime = ((double) (end_time.tv_sec - start_time.tv_sec)) + ((double) (end_time.tv_nsec - start_time.tv_nsec)) * 1e-9;
-  printf("Time spent: %.3f seconds\n", spentTime);
+  printf("Time spent: %.5f seconds\n", spentTime);
 
   freeBmpImage(processImage);
   //Write the image back to disk
