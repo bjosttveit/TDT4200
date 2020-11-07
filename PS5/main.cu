@@ -290,11 +290,12 @@ int main(int argc, char **argv) {
   cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
-  dim3 threadsPerBlock(8, 8);
+  dim3 threadsPerBlock(16, 16);
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
   // TODO: Intialize and start CUDA timer
-  clock_t t1 = clock();
+  struct timespec start_time, end_time;
+  clock_gettime(CLOCK_MONOTONIC, &start_time);
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
@@ -317,8 +318,8 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
-  cudaDeviceSynchronize();
-  clock_t t2 = clock();
+  //cudaDeviceSynchronize();
+  clock_gettime(CLOCK_MONOTONIC, &end_time);
 
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
@@ -330,7 +331,7 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Calculate and print elapsed time
-  float spentTime = (t2 - t1)/CLOCKS_PER_SEC;
+  double spentTime = ((double) (end_time.tv_sec - start_time.tv_sec)) + ((double) (end_time.tv_nsec - start_time.tv_nsec)) * 1e-9;
   printf("Time spent: %.3f seconds\n", spentTime);
 
   freeBmpImage(processImage);
