@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
-  //cudaDeviceSynchronize();
+  cudaDeviceSynchronize();
   clock_gettime(CLOCK_MONOTONIC, &end_time);
 
   // TODO: Copy back rawdata from images
