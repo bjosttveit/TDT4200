@@ -130,10 +130,9 @@ void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height,
 // Apply convolutional filter on image data
 __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
-  unsigned int y_start = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x);
-  unsigned int y_end = (height / TOTAL_THREAD_COUNT) * (blockIdx.x * BLOCK_SIZE + threadIdx.x + 1);
-  for (unsigned int y = y_start; y < y_end; y++) {
-    for (unsigned int x = 0; x < width; x++) {
+  unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+  if (x < width && y < height) {
       int ar = 0, ag = 0, ab = 0;
       for (unsigned int ky = 0; ky < filterDim; ky++) {
         int nky = filterDim - 1 - ky;
@@ -161,7 +160,6 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
       out[y*width +x].r = (ar > 255) ? 255 : ar;
       out[y*width +x].g = (ag > 255) ? 255 : ag;
       out[y*width +x].b = (ab > 255) ? 255 : ab;
-    }
   }
 }
 
@@ -294,14 +292,13 @@ int main(int argc, char **argv) {
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
   dim3 threadsPerBlock(16, 16);
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
-  printf("%d %d\n", numBlocks.x, numBlocks.y);
 
   // TODO: Intialize and start CUDA timer
   clock_t t1 = clock();
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<GRID_SIZE,BLOCK_SIZE>>>(
+    applyFilterDevice<<<numBlocks,threadsPerBlock>>>(
         devicePixelsOut,
 		    devicePixelsIn,
 		    image->width,
