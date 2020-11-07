@@ -292,7 +292,9 @@ int main(int argc, char **argv) {
   cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
-  
+  dim3 threadsPerBlock(16, 16);
+  dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
+  printf("%d %d", numBlocks.x, numBlocks.y);
 
   // TODO: Intialize and start CUDA timer
   clock_t t1 = clock();
