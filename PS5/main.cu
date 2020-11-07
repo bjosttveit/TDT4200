@@ -271,6 +271,8 @@ int main(int argc, char **argv) {
 
 
   // TODO: implement time measurement from here
+  struct timespec start_time, end_time;
+  clock_gettime(CLOCK_MONOTONIC, &start_time);
 
   // Here we do the actual computation!
   // image->data is a 2-dimensional array of pixel which is accessed row first ([y][x])
@@ -294,8 +296,8 @@ int main(int argc, char **argv) {
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
   // TODO: Intialize and start CUDA timer
-  struct timespec start_time, end_time;
-  clock_gettime(CLOCK_MONOTONIC, &start_time);
+  //struct timespec start_time, end_time;
+  //clock_gettime(CLOCK_MONOTONIC, &start_time);
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
@@ -318,8 +320,8 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Stop CUDA timer
-  cudaDeviceSynchronize();
-  clock_gettime(CLOCK_MONOTONIC, &end_time);
+  //cudaDeviceSynchronize();
+  //clock_gettime(CLOCK_MONOTONIC, &end_time);
 
   // TODO: Copy back rawdata from images
   cudaMemcpy(image->rawdata, devicePixelsIn, image->width * image->height * sizeof(pixel), cudaMemcpyDeviceToHost);
@@ -331,6 +333,8 @@ int main(int argc, char **argv) {
   }
 
   // TODO: Calculate and print elapsed time
+  cudaDeviceSynchronize();
+  clock_gettime(CLOCK_MONOTONIC, &end_time);
   double spentTime = ((double) (end_time.tv_sec - start_time.tv_sec)) + ((double) (end_time.tv_nsec - start_time.tv_nsec)) * 1e-9;
   printf("Time spent: %.5f seconds\n", spentTime);
 

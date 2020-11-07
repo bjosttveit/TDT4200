@@ -231,6 +231,7 @@ int main(int argc, char **argv) {
 
 
   // TODO: implement time measurement from here
+  clock_t t = clock();
 
   // Here we do the actual computation!
   // image->data is a 2-dimensional array of pixel which is accessed row first ([y][x])
@@ -243,7 +244,6 @@ int main(int argc, char **argv) {
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
 
   // TODO: Intialize and start CUDA timer
-  clock_t t = clock();
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
