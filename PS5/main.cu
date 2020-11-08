@@ -136,7 +136,7 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   unsigned int threadNumber = threadIdx.x + blockDim.x * threadIdx.y;
   unsigned int blockSize = blockDim.x * blockDim.y;
   unsigned int bufferWidth = (blockDim.x + 2*filterCenter);
-  unsigned int bufferHeight = (blockDim.y + 2*filterCenter);
+  //unsigned int bufferHeight = (blockDim.y + 2*filterCenter);
 
   extern __shared__ int s[];
 
