@@ -136,18 +136,20 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   unsigned int threadNumber = threadIdx.x + blockDim.x * threadIdx.y;
   unsigned int blockSize = blockDim.x * blockDim.y;
 
+  extern __shared__ int s[];
+
   //Copy filter to shared memory
   int filterLength = filterDim * filterDim;
-  __shared__ int f[filterLength];
+  int *f = s;
   for (unsigned int i = threadNumber; i < filterLength; i += blockSize) {
     f[i] = filter[i];
   }
 
   //Copy pixels to shared memory
   int bufferLength = (blockDim.x + 2*filterCenter)*(blockDim.y + 2*filterCenter);
-  __shared__ pixel buffer[bufferLength];
+  pixel *buffer = (pixel*)&f[filterLength];
   int start = (blockIdx.x * blockDim.x - filterCenter) + width * (blockIdx.y * blockDim.y - filterCenter);
-  for (unsigned int i = threadNumber; i < bufferLength; i += blockSize) {
+  for (int i = threadNumber; i < bufferLength; i += blockSize) {
     if (start + i >= 0) {    
       buffer[i] = in[start + i];
     }
@@ -319,13 +321,19 @@ int main(int argc, char **argv) {
   dim3 threadsPerBlock(16, 16);
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
+  //Specify the amount of shared memory for filter and pixel blocks
+  int filterLength = filterDims[filterIndex]*filterDims[filterIndex];
+  int filterCenter = filterDims[filterIndex] / 2;
+  int blockBufferLength = (threadsPerBlock.x + 2*filterCenter)*(threadsPerBlock.y + 2*filterCenter);
+  size_t sharedSize = filterLength*sizeof(int) + blockBufferLength*sizeof(pixel);
+
   // TODO: Intialize and start CUDA timer
   //struct timespec start_time, end_time;
   //clock_gettime(CLOCK_MONOTONIC, &start_time);
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<numBlocks,threadsPerBlock>>>(
+    applyFilterDevice<<<numBlocks, threadsPerBlock, sharedSize>>>(
         devicePixelsOut,
 		    devicePixelsIn,
 		    image->width,
