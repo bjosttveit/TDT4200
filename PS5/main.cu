@@ -132,6 +132,30 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   unsigned int const filterCenter = (filterDim / 2);
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  unsigned int threadNumber = threadIdx.x + blockDim.x * threadIdx.y;
+  unsigned int blockSize = blockDim.x * blockDim.y;
+
+  //Copy filter to shared memory
+  int filterLength = filterDim*filterDim
+  __shared__ int f[filterLength];
+  for (unsigned int i = threadNumber; i < filterLength; i += blockSize) {
+    f[i] = filter[i];
+  }
+
+  //Copy pixels to shared memory
+  int bufferLength = (blockDim.x + 2*filterCenter)*(blockDim.y + 2*filterCenter);
+  __shared__ pixel buffer[bufferLength];
+  int start = (blockIdx.x * blockDim.x - filterCenter) + width * (blockIdx.y * blockDim.y - filterCenter);
+  for (unsigned int i = threadNumber; i < bufferLength; i += blockSize) {
+    if (start + i >= 0) {    
+      buffer[i] = in[start + i];
+    }
+  }
+
+  __syncthreads();
+
+
   if (x < width && y < height) {
       int ar = 0, ag = 0, ab = 0;
       for (unsigned int ky = 0; ky < filterDim; ky++) {
@@ -139,12 +163,12 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
         for (unsigned int kx = 0; kx < filterDim; kx++) {
           int nkx = filterDim - 1 - kx;
 
-          int yy = y + (ky - filterCenter);
-          int xx = x + (kx - filterCenter);
+          int yy = threadIdx.y + (ky - filterCenter);
+          int xx = threadIdx.x + (kx - filterCenter);
           if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
-            ar += in[yy*width + xx].r * filter[nky * filterDim + nkx];
-            ag += in[yy*width + xx].g * filter[nky * filterDim + nkx];
-            ab += in[yy*width + xx].b * filter[nky * filterDim + nkx];
+            ar += buffer[yy*width + xx].r * f[nky * filterDim + nkx];
+            ag += buffer[yy*width + xx].g * f[nky * filterDim + nkx];
+            ab += buffer[yy*width + xx].b * f[nky * filterDim + nkx];
           }
         }
       }
