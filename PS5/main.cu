@@ -135,7 +135,7 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
 
   unsigned int threadNumber = threadIdx.x + blockDim.x * threadIdx.y;
   unsigned int blockSize = blockDim.x * blockDim.y;
-  //unsigned int bufferWidth = (blockDim.x + 2*filterCenter);
+  unsigned int bufferWidth = (blockDim.x + 2*filterCenter);
   //unsigned int bufferHeight = (blockDim.y + 2*filterCenter);
 
   extern __shared__ int s[];
@@ -152,12 +152,12 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   pixel *buffer = (pixel*)&f[filterLength];
   int startX = blockIdx.x * blockDim.x;
   int startY = blockIdx.y * blockDim.y;
-  for (int by = -filterCenter; by < blockDim.y + filterCenter; by += blockDim.y) {
-    for (int bx = -filterCenter; bx < blockDim.x + filterCenter; bx += blockDim.x) {
-      int yy = startY + by;
-      int xx = startX + bx;
+  for (int by = threadIdx.y; by < blockDim.y + 2*filterCenter; by += blockDim.y) {
+    for (int bx = threadIdx.x; bx < blockDim.x + 2*filterCenter; bx += blockDim.x) {
+      int yy = startY + by - filterCenter;
+      int xx = startX + bx - filterCenter;
       if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
-        buffer[(by + filterCenter) * blockDim.x + (bx + filterCenter)] = in[yy*width + xx];
+        buffer[by * bufferWidth + bx] = in[yy*width + xx];
       }
     }
   }
@@ -174,10 +174,14 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
 
           int yy = threadIdx.y + (ky - filterCenter);
           int xx = threadIdx.x + (kx - filterCenter);
-          if (xx + startX >= 0 && xx + startX < (int) width && yy + startY >=0 && yy + startY < (int) height) {
-            ar += buffer[yy*blockDim.x + xx].r * f[nky * filterDim + nkx];
-            ag += buffer[yy*blockDim.x + xx].g * f[nky * filterDim + nkx];
-            ab += buffer[yy*blockDim.x + xx].b * f[nky * filterDim + nkx];
+          int sy = startY + yy;
+          int sx = startX + xx;
+          int by = filterCenter + yy;
+          int bx = filterCenter + xx;
+          if (sx >= 0 && sx + startX < (int) width && sy + startY >=0 && sy + startY < (int) height) {
+            ar += buffer[by*bufferWidth + bx].r * f[nky * filterDim + nkx];
+            ag += buffer[by*bufferWidth + bx].g * f[nky * filterDim + nkx];
+            ab += buffer[by*bufferWidth + bx].b * f[nky * filterDim + nkx];
           }
         }
       }
