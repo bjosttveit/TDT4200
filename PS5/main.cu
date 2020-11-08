@@ -154,7 +154,7 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   int startY = blockIdx.y * blockDim.y;
   for (int by = -filterCenter; by < blockDim.y + filterCenter; by += blockDim.y) {
     for (int bx = -filterCenter; bx < blockDim.x + filterCenter; bx += blockDim.x) {
-      int yy = starty + by;
+      int yy = startY + by;
       int xx = startX + bx;
       if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
         buffer[(by + filterCenter) * bufferWidth + (bx + filterCenter)] = in[yy*width + xx];
