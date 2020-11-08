@@ -148,7 +148,7 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   }
 
   //Copy pixels to shared memory
-  int bufferLength = bufferWidth*bufferHeight;
+  //int bufferLength = bufferWidth*bufferHeight;
   pixel *buffer = (pixel*)&f[filterLength];
   int startX = blockIdx.x * blockDim.x;
   int startY = blockIdx.y * blockDim.y;
