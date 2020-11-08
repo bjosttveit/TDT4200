@@ -137,7 +137,7 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   unsigned int blockSize = blockDim.x * blockDim.y;
 
   //Copy filter to shared memory
-  int filterLength = filterDim*filterDim
+  int filterLength = filterDim * filterDim;
   __shared__ int f[filterLength];
   for (unsigned int i = threadNumber; i < filterLength; i += blockSize) {
     f[i] = filter[i];
