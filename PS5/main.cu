@@ -347,8 +347,19 @@ int main(int argc, char **argv) {
 		    filterDims[filterIndex],
 		    filterFactors[filterIndex]
     );
+
+    error = cudaPeekAtLastError();
+    if (error) {
+        fprintf(stderr, "KERNEL: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
+    }
+
     //swapImage(&processImage, &image);
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
+
+    error = cudaPeekAtLastError();
+    if (error) {
+        fprintf(stderr, "SWAP: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
+    }
   }
 
   error = cudaPeekAtLastError();
