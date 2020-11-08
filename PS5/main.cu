@@ -331,6 +331,11 @@ int main(int argc, char **argv) {
   //struct timespec start_time, end_time;
   //clock_gettime(CLOCK_MONOTONIC, &start_time);
 
+  cudaError_t error = cudaPeekAtLastError();
+  if (error) {
+      fprintf(stderr, "1: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
+  }
+
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
     applyFilterDevice<<<numBlocks, threadsPerBlock, sharedSize>>>(
@@ -346,9 +351,9 @@ int main(int argc, char **argv) {
     swapImageRawdata(&devicePixelsOut, &devicePixelsIn);
   }
 
-  cudaError_t error = cudaPeekAtLastError();
+  error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "1: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "2: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Stop CUDA timer
@@ -361,7 +366,7 @@ int main(int argc, char **argv) {
   
   error = cudaPeekAtLastError();
   if (error) {
-      fprintf(stderr, "2: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
+      fprintf(stderr, "3: A CUDA error has occurred: %s\n", cudaGetErrorString(error));
   }
 
   // TODO: Calculate and print elapsed time
