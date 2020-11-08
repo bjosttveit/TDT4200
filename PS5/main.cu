@@ -172,17 +172,14 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
         for (unsigned int kx = 0; kx < filterDim; kx++) {
           int nkx = filterDim - 1 - kx;
 
-          int yy = threadIdx.y + (ky - filterCenter);
-          int xx = threadIdx.x + (kx - filterCenter);
-          int sy = startY + yy;
-          int sx = startX + xx;
-          int by = filterCenter + yy;
-          int bx = filterCenter + xx;
-          if (sx >= 0 && sx + startX < (int) width && sy + startY >=0 && sy + startY < (int) height) {
+          int yy = y + (ky - filterCenter);
+          int xx = x + (kx - filterCenter);
+          int by = yy - startY + filterCenter;
+          int bx = xx - startX + filterCenter;
+          if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
             ar += buffer[by*bufferWidth + bx].r * f[nky * filterDim + nkx];
             ag += buffer[by*bufferWidth + bx].g * f[nky * filterDim + nkx];
             ab += buffer[by*bufferWidth + bx].b * f[nky * filterDim + nkx];
-          }
         }
       }
 
