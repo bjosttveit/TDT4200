@@ -136,7 +136,6 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   unsigned int threadNumber = threadIdx.x + blockDim.x * threadIdx.y;
   unsigned int blockSize = blockDim.x * blockDim.y;
   unsigned int bufferWidth = (blockDim.x + 2*filterCenter);
-  //unsigned int bufferHeight = (blockDim.y + 2*filterCenter);
 
   extern __shared__ int s[];
 
@@ -148,7 +147,6 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   }
 
   //Copy pixels to shared memory
-  //int bufferLength = bufferWidth*bufferHeight;
   pixel *buffer = (pixel*)&f[filterLength];
   int startX = blockIdx.x * blockDim.x;
   int startY = blockIdx.y * blockDim.y;
@@ -327,14 +325,14 @@ int main(int argc, char **argv) {
   cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
-  dim3 threadsPerBlock(16, 16);
+  dim3 threadsPerBlock(32, 32);
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
   //Specify the amount of shared memory for filter and pixel blocks
   int filterLength = filterDims[filterIndex]*filterDims[filterIndex];
   int filterCenter = filterDims[filterIndex] / 2;
   int blockBufferLength = (threadsPerBlock.x + 2*filterCenter)*(threadsPerBlock.y + 2*filterCenter);
-  size_t sharedSize = filterLength*sizeof(int) + blockBufferLength*sizeof(pixel);
+  size_t sharedMemSize = filterLength*sizeof(int) + blockBufferLength*sizeof(pixel);
 
   // TODO: Intialize and start CUDA timer
   //struct timespec start_time, end_time;
@@ -347,7 +345,7 @@ int main(int argc, char **argv) {
 
   for (unsigned int i = 0; i < iterations; i ++) {
       // TODO: Implement kernel call instead of serial implementation
-    applyFilterDevice<<<numBlocks, threadsPerBlock, sharedSize>>>(
+    applyFilterDevice<<<numBlocks, threadsPerBlock, sharedMemSize>>>(
         devicePixelsOut,
 		    devicePixelsIn,
 		    image->width,
