@@ -166,22 +166,23 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
 
 
   if (x < width && y < height) {
-      int ar = 0, ag = 0, ab = 0;
-      for (unsigned int ky = 0; ky < filterDim; ky++) {
-        int nky = filterDim - 1 - ky;
-        for (unsigned int kx = 0; kx < filterDim; kx++) {
-          int nkx = filterDim - 1 - kx;
+    int ar = 0, ag = 0, ab = 0;
+    for (unsigned int ky = 0; ky < filterDim; ky++) {
+      int nky = filterDim - 1 - ky;
+      for (unsigned int kx = 0; kx < filterDim; kx++) {
+        int nkx = filterDim - 1 - kx;
 
-          int yy = y + (ky - filterCenter);
-          int xx = x + (kx - filterCenter);
-          int by = yy - startY + filterCenter;
-          int bx = xx - startX + filterCenter;
-          if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
-            ar += buffer[by*bufferWidth + bx].r * f[nky * filterDim + nkx];
-            ag += buffer[by*bufferWidth + bx].g * f[nky * filterDim + nkx];
-            ab += buffer[by*bufferWidth + bx].b * f[nky * filterDim + nkx];
+        int yy = y + (ky - filterCenter);
+        int xx = x + (kx - filterCenter);
+        int by = yy - startY + filterCenter;
+        int bx = xx - startX + filterCenter;
+        if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
+          ar += buffer[by*bufferWidth + bx].r * f[nky * filterDim + nkx];
+          ag += buffer[by*bufferWidth + bx].g * f[nky * filterDim + nkx];
+          ab += buffer[by*bufferWidth + bx].b * f[nky * filterDim + nkx];
         }
       }
+    }
 
       ar *= filterFactor;
       ag *= filterFactor;
