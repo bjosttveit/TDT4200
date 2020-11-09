@@ -374,7 +374,6 @@ int main(int argc, char **argv) {
   printf("Time spent: %.5f seconds\n", spentTime);
 
   //Occupancy calculation taken directly from: https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
-  blockSize = 16*16;
   int maxActiveBlocks;
   cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks, applyFilterDevice, blockSize, sharedMemSize);
 
