@@ -334,6 +334,24 @@ int main(int argc, char **argv) {
   int blockBufferLength = (threadsPerBlock.x + 2*filterCenter)*(threadsPerBlock.y + 2*filterCenter);
   size_t sharedMemSize = filterLength*sizeof(int) + blockBufferLength*sizeof(pixel);
 
+  //Occupancy
+  int blockSize;
+  int minGridSize;
+  cudaOccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, applyFilterDevice, sharedMemSize, 0);
+
+  int maxActiveBlocks;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks, applyFilterDevice, blockSize, sharedMemSize);
+
+  int device;
+  cudaDeviceProp props;
+  cudaGetDevice(&device);
+  cudaGetDeviceProperties(&props, device);
+
+  float occupancy = (maxActiveBlocks * blockSize / props.warpSize) / (float)(props.maxThreadsPerMultiProcessor / props.warpSize);
+  printf("Launched blocks of size %d. Theoretical occupancy: %f\n", blockSize, occupancy);
+
+  exit(0);
+
   // TODO: Intialize and start CUDA timer
   struct timespec start_time, end_time;
   clock_gettime(CLOCK_MONOTONIC, &start_time);
