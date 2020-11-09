@@ -219,7 +219,7 @@ void help(char const *exec, char const opt, char const *optarg) {
 
 size_t blockSizeToDynamicSMemSize(int blockSize) {
   //Assumes that the blockdimensions are square, 3x3 filter is hardcoded in this case
-  size_t sharedMemSize = 9*sizeof(int) + (blockSize + 4 * sqrt(blockSize) + 4) * sizeof(pixel)
+  size_t sharedMemSize = 9*sizeof(int) + (blockSize + 4 * sqrt(blockSize) + 4) * sizeof(pixel);
   return sharedMemSize;
 }
 
