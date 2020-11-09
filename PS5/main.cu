@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 extern "C" {
     #include "libs/bitmap.h"
@@ -216,6 +217,12 @@ void help(char const *exec, char const opt, char const *optarg) {
     fprintf(out, "Example: %s before.bmp after.bmp -i 10000\n", exec);
 }
 
+size_t blockSizeToDynamicSMemSize(int blockSize) {
+  //Assumes that the blockdimensions are square, 3x3 filter is hardcoded in this case
+  size_t sharedMemSize = 9*sizeof(int) + (blockSize + 4 * sqrt(blockSize) + 4) * sizeof(pixel)
+  return sharedMemSize;
+}
+
 
 int main(int argc, char **argv) {
   /*
@@ -337,7 +344,7 @@ int main(int argc, char **argv) {
   //Occupancy
   int blockSize;
   int minGridSize;
-  cudaOccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, applyFilterDevice, sharedMemSize, 0);
+  cudaOccupancyMaxPotentialBlockSizeVariableSMem( &minGridSize, &blockSize, applyFilterDevice, blockSizeToDynamicSMemSize, 0);
 
   // TODO: Intialize and start CUDA timer
   struct timespec start_time, end_time;
