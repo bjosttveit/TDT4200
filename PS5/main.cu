@@ -92,43 +92,7 @@ void swapImage(bmpImage **one, bmpImage **two) {
   *one = helper;
 }
 
-// Apply convolutional filter on image data
-void applyFilter(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
-  unsigned int const filterCenter = (filterDim / 2);
-  for (unsigned int y = 0; y < height; y++) {
-    for (unsigned int x = 0; x < width; x++) {
-      int ar = 0, ag = 0, ab = 0;
-      for (unsigned int ky = 0; ky < filterDim; ky++) {
-        int nky = filterDim - 1 - ky;
-        for (unsigned int kx = 0; kx < filterDim; kx++) {
-          int nkx = filterDim - 1 - kx;
-
-          int yy = y + (ky - filterCenter);
-          int xx = x + (kx - filterCenter);
-          if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
-            ar += in[yy*width + xx].r * filter[nky * filterDim + nkx];
-            ag += in[yy*width + xx].g * filter[nky * filterDim + nkx];
-            ab += in[yy*width + xx].b * filter[nky * filterDim + nkx];
-          }
-        }
-      }
-
-      ar *= filterFactor;
-      ag *= filterFactor;
-      ab *= filterFactor;
-      
-      ar = (ar < 0) ? 0 : ar;
-      ag = (ag < 0) ? 0 : ag;
-      ab = (ab < 0) ? 0 : ab;
-
-      out[y*width +x].r = (ar > 255) ? 255 : ar;
-      out[y*width +x].g = (ag > 255) ? 255 : ag;
-      out[y*width +x].b = (ab > 255) ? 255 : ab;
-    }
-  }
-}
-
-// Apply convolutional filter on image data
+// Apply convolutional filter on image data using gpu
 __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -148,6 +112,8 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
   }
 
   //Copy pixels to shared memory
+  //It takes the filtersize into account
+  //and includes enough pixels around the block
   pixel *buffer = (pixel*)&f[filterLength];
   int startX = blockIdx.x * blockDim.x;
   int startY = blockIdx.y * blockDim.y;
@@ -171,8 +137,10 @@ __global__ void applyFilterDevice(pixel *out, pixel *in, unsigned int width, uns
       for (unsigned int kx = 0; kx < filterDim; kx++) {
         int nkx = filterDim - 1 - kx;
 
+        //xx and yy is the position of the pixel on the actual image
         int yy = y + (ky - filterCenter);
         int xx = x + (kx - filterCenter);
+        //bx and by is the position of the same pixel in the shared memory buffer
         int by = yy - startY + filterCenter;
         int bx = xx - startX + filterCenter;
         if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height) {
@@ -218,7 +186,7 @@ void help(char const *exec, char const opt, char const *optarg) {
 }
 
 size_t blockSizeToDynamicSMemSize(int blockSize) {
-  //Assumes that the blockdimensions are square, 3x3 filter is hardcoded in this case
+  //Assumes that the blockdimensions are square, 3x3 filter is assumed in this case
   size_t sharedMemSize = 9*sizeof(int) + (blockSize + 4 * sqrt(blockSize) + 4) * sizeof(pixel);
   return sharedMemSize;
 }
@@ -332,7 +300,7 @@ int main(int argc, char **argv) {
   cudaMemcpy(filter, filters[filterIndex], filterDims[filterIndex]*filterDims[filterIndex]*sizeof(int), cudaMemcpyHostToDevice);
 
   // TODO: Define the gridSize and blockSize, e.g. using dim3 (see Section 2.2. in CUDA Programming Guide)
-  dim3 threadsPerBlock(16, 16);
+  dim3 threadsPerBlock(32, 32);
   dim3 numBlocks((image->width + threadsPerBlock.x - 1) / threadsPerBlock.x, (image->height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
   //Specify the amount of shared memory for filter and pixel blocks
@@ -341,7 +309,7 @@ int main(int argc, char **argv) {
   int blockBufferLength = (threadsPerBlock.x + 2*filterCenter)*(threadsPerBlock.y + 2*filterCenter);
   size_t sharedMemSize = filterLength*sizeof(int) + blockBufferLength*sizeof(pixel);
 
-  //Occupancy
+  //Occupancy max potential block size
   int blockSize;
   int minGridSize;
   cudaOccupancyMaxPotentialBlockSizeVariableSMem( &minGridSize, &blockSize, applyFilterDevice, blockSizeToDynamicSMemSize, 0);
@@ -405,6 +373,8 @@ int main(int argc, char **argv) {
   double spentTime = ((double) (end_time.tv_sec - start_time.tv_sec)) + ((double) (end_time.tv_nsec - start_time.tv_nsec)) * 1e-9;
   printf("Time spent: %.5f seconds\n", spentTime);
 
+  //Occupancy calculation taken directly from: https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
+  blockSize = 16*16;
   int maxActiveBlocks;
   cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks, applyFilterDevice, blockSize, sharedMemSize);
 
