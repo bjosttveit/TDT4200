@@ -339,19 +339,6 @@ int main(int argc, char **argv) {
   int minGridSize;
   cudaOccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, applyFilterDevice, sharedMemSize, 0);
 
-  int maxActiveBlocks;
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks, applyFilterDevice, blockSize, sharedMemSize);
-
-  int device;
-  cudaDeviceProp props;
-  cudaGetDevice(&device);
-  cudaGetDeviceProperties(&props, device);
-
-  float occupancy = (maxActiveBlocks * blockSize / props.warpSize) / (float)(props.maxThreadsPerMultiProcessor / props.warpSize);
-  printf("Launched blocks of size %d. Theoretical occupancy: %f\n", blockSize, occupancy);
-
-  exit(0);
-
   // TODO: Intialize and start CUDA timer
   struct timespec start_time, end_time;
   clock_gettime(CLOCK_MONOTONIC, &start_time);
@@ -410,6 +397,17 @@ int main(int argc, char **argv) {
   //clock_gettime(CLOCK_MONOTONIC, &end_time);
   double spentTime = ((double) (end_time.tv_sec - start_time.tv_sec)) + ((double) (end_time.tv_nsec - start_time.tv_nsec)) * 1e-9;
   printf("Time spent: %.5f seconds\n", spentTime);
+
+  int maxActiveBlocks;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks, applyFilterDevice, blockSize, sharedMemSize);
+
+  int device;
+  cudaDeviceProp props;
+  cudaGetDevice(&device);
+  cudaGetDeviceProperties(&props, device);
+
+  float occupancy = (maxActiveBlocks * blockSize / props.warpSize) / (float)(props.maxThreadsPerMultiProcessor / props.warpSize);
+  printf("Launched blocks of size %d. Theoretical occupancy: %f\n", blockSize, occupancy);
 
   freeBmpImage(processImage);
   //Write the image back to disk
